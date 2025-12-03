@@ -1,0 +1,27 @@
+if "kto caman крутая группа" in text or "caman крутая группа" in text:
+    keyboard = [
+        [InlineKeyboardButton("ИСП 23-0", callback_data="group_isp_23_0")],
+        [InlineKeyboardButton("ИСП 23", callback_data="group_isp_23")],
+        [InlineKeyboardButton("ИСП 23-0", callback_data="group_isp_23_0_2")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выберите группу:", reply_markup=reply_markup)
+
+elif text == "Расписание":
+    await update.message.reply_text("Расписание занятий:\n(Всё сложно)")
+
+elif text == "Информация о техникуме":
+    await update.message.reply_text("Информация о техникуме:\n(Техникум - центр общественной жизни не только Устиновое)")
+
+elif text == "Связь с администрацией":
+    keyboard = [
+        [InlineKeyboardButton("Написать в приемную комиссию", url="https://t.me/Kamidashi")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Свяжитесь с администрацией:", reply_markup=reply_markup)
+
+elif text == "Помощь":
+    await update.message.reply_text("Я могу помочь вам с выбором нашего техникума, он лучший в мире.")
+
+else:
+    await update.message.reply_text("Я не понимаю эту команду.")
