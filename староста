@@ -5,7 +5,7 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 # Убедитесь, что эта сетевая папка доступна из окружения, где запускается бот
-SAVE_DIR = r"\\192.168.3.250\Veda\2 Курс\ИСП 23\Основы алгоритмизации и программирования\Черепанов Балобанов"
+SAVE_DIR =
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 conn = sqlite3.connect("starosta.db")
