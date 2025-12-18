@@ -4,14 +4,15 @@ import datetime
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-# Убедитесь, что эта сетевая папка доступна из окружения, где запускается бот
-SAVE_DIR =
+SAVE_DIR = r""
 os.makedirs(SAVE_DIR, exist_ok=True)
+
+TOKEN = "" 
+application = ApplicationBuilder().token(TOKEN).build()
 
 conn = sqlite3.connect("starosta.db")
 cursor = conn.cursor()
 
-# Создаем таблицу users
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +23,6 @@ CREATE TABLE IF NOT EXISTS users (
 )
 """)
 
-# Создаем таблицу user_photos с правильными столбцами
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS user_photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +34,6 @@ CREATE TABLE IF NOT EXISTS user_photos (
 )
 """)
 
-# Таблица для администраторов
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,18 +43,15 @@ CREATE TABLE IF NOT EXISTS admins (
 )
 """)
 
-# Проверяем, есть ли столбец reason в таблице user_photos
 cursor.execute("PRAGMA table_info(user_photos)")
 columns = cursor.fetchall()
 column_names = [col[1] for col in columns]
 
-# Если столбца reason нет, добавляем его
 if 'reason' not in column_names:
     cursor.execute("ALTER TABLE user_photos ADD COLUMN reason TEXT")
     print("Добавлен столбец 'reason' в таблицу 'user_photos'")
 
-# Добавляем админа по умолчанию (замените на свой user_id)
-ADMIN_IDS = []  # Замените на реальный ID администратора
+ADMIN_IDS = []  
 for admin_id in ADMIN_IDS:
     cursor.execute("""
         INSERT OR IGNORE INTO admins (user_id) VALUES (?)
@@ -63,10 +59,8 @@ for admin_id in ADMIN_IDS:
 
 conn.commit()
 
-# ========== Константы для ConversationHandler ==========
 FULLNAME, GROUP, REASON = range(3)
 
-# Функция для проверки, является ли пользователь администратором
 def is_admin(user_id: int) -> bool:
     cursor.execute("SELECT user_id FROM admins WHERE user_id = ?", (user_id,))
     return cursor.fetchone() is not None
@@ -74,18 +68,17 @@ def is_admin(user_id: int) -> bool:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     
-    # Создаем разную клавиатуру для админа и обычного пользователя
     if is_admin(user_id):
         keyboard = ReplyKeyboardMarkup([
             [KeyboardButton("Зарегистрироваться")],
-            [KeyboardButton("Причина опоздания"), KeyboardButton("Посменная причина опоздания")],
-            [KeyboardButton("Список зарегистрированных"), KeyboardButton("Добавить админа")]  # Новая кнопка для админа
+            [KeyboardButton("Причина опоздания")],  # Одна кнопка на строку
+            [KeyboardButton("Список зарегистрированных"), KeyboardButton("Добавить админа")]  
         ], resize_keyboard=True, one_time_keyboard=False)
         welcome_text = "Я бот-староста твоей группы (режим администратора).\n\n"
     else:
         keyboard = ReplyKeyboardMarkup([
             [KeyboardButton("Зарегистрироваться")],
-            [KeyboardButton("Причина опоздания"), KeyboardButton("Посменная причина опоздания")]
+            [KeyboardButton("Причина опоздания")]  # Одна кнопка вместо двух
         ], resize_keyboard=True, one_time_keyboard=False)
         welcome_text = "Я бот-староста твоей группы.\nОтправь мне фото со справкой или освобождением.\n\n"
     
@@ -95,16 +88,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def registration_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Начинаем регистрацию - просим ФИО
     await update.message.reply_text("Пожалуйста, отправь своё полное имя (ФИО).")
     return FULLNAME
 
 async def full_name_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Сохраняем ФИО в контекст и просим номер группы
     context.user_data['full_name'] = update.message.text
-    await update.message.
-
-reply_text("Спасибо! Теперь отправь номер своей группы.")
+    await update.message.reply_text("Спасибо! Теперь отправь номер своей группы.")
     return GROUP
 
 async def group_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -112,7 +101,6 @@ async def group_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group_number = update.message.text
     user_id = update.message.from_user.id
 
-    # Сохраняем в базу или обновляем, если уже есть
     cursor.execute("""
         INSERT INTO users (user_id, full_name, group_number) VALUES (?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET full_name=excluded.full_name, group_number=excluded.group_number
@@ -120,23 +108,19 @@ async def group_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
 
     await update.message.reply_text(f"Регистрация завершена!\nФИО: {full_name}\nГруппа: {group_number}")
-
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Регистрация/процесс отменен.")
     return ConversationHandler.END
 
-# Функция для показа всех зарегистрированных пользователей (только для админа)
 async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     
-    # Проверяем, является ли пользователь администратором
     if not is_admin(user_id):
         await update.message.reply_text("⛔ У вас нет прав для просмотра этого списка.")
         return
     
-    # Получаем всех зарегистрированных пользователей из базы данных
     cursor.execute("""
         SELECT full_name, group_number, registration_time 
         FROM users 
@@ -148,11 +132,9 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Еще никто не зарегистрировался.")
         return
     
-    # Формируем сообщение со списком пользователей
     message = "📋 Список зарегистрированных пользователей:\n\n"
     
     for i, (full_name, group_number, reg_time) in enumerate(users, 1):
-        # Преобразуем время в читаемый формат
         try:
             reg_time_str = datetime.datetime.strptime(reg_time, "%Y-%m-%d %H:%M:%S").strftime("%d.%m.%Y %H:%M")
         except:
@@ -165,17 +147,14 @@ async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TY
     
     await update.message.reply_text(message)
 
-# Функция для добавления нового администратора
 async def add_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     
-    # Проверяем, является ли пользователь администратором
     if not is_admin(user_id):
         await update.message.reply_text("⛔ У вас нет прав для добавления администраторов.")
         return
     
     await update.message.reply_text("Пожалуйста, отправьте user_id нового администратора.")
-    # Сохраняем состояние, что мы ожидаем ID админа
     context.user_data['adding_admin'] = True
     return 'WAITING_FOR_ADMIN_ID'
 
@@ -183,7 +162,6 @@ async def add_admin_id_received(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         new_admin_id = int(update.message.text)
         
-        # Добавляем нового администратора
         cursor.execute("""
             INSERT OR IGNORE INTO admins (user_id, username) VALUES (?, ?)
         """, (new_admin_id, update.message.from_user.username or "Неизвестный пользователь"))
@@ -191,7 +169,6 @@ async def add_admin_id_received(update: Update, context: ContextTypes.DEFAULT_TY
         
         await update.message.reply_text(f"✅ Пользователь с ID {new_admin_id} добавлен как администратор.")
         
-        # Очищаем состояние
         context.user_data.pop('adding_admin', None)
         return ConversationHandler.END
     except ValueError:
@@ -204,9 +181,7 @@ async def reason_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = update.message.from_user.id
     cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-    if cursor.
-
-fetchone() is None:
+    if cursor.fetchone() is None:
         await update.message.reply_text("Вы не зарегистрированы. Пожалуйста, сначала зарегистрируйтесь.")
         return ConversationHandler.END
     
@@ -237,8 +212,7 @@ async def photo_handler_with_reason(update: Update, context: ContextTypes.DEFAUL
     await file.download_to_drive(file_path)
 
     try:
-        cursor.execute(
-            "INSERT INTO user_photos (user_id, file_path, reason) VALUES (?, ?, ?)",
+        cursor.execute("INSERT INTO user_photos (user_id, file_path, reason) VALUES (?, ?, ?)",
             (user_id, file_path, reason)
         )
         conn.commit()
@@ -298,10 +272,7 @@ async def photos_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Ты отправил(а) {count} фото.")
 
 if __name__ == "__main__":
-    TOKEN = "" 
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    # Conversation handler для регистрации
+    
     registration_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^(Зарегистрироваться)$"), registration_start)],
         states={
@@ -312,11 +283,9 @@ if __name__ == "__main__":
         allow_reentry=True
     )
 
-    # Conversation handler для обработки причины и фото
-
-reason_photo_conv = ConversationHandler(
+    reason_photo_conv = ConversationHandler(
         entry_points=[
-            MessageHandler(filters.Regex("^(Причина опоздания|Посменная причина опоздания)$"), reason_start)
+            MessageHandler(filters.Regex("^(Причина опоздания)$"), reason_start)
         ],
         states={
             REASON: [MessageHandler(filters.PHOTO, photo_handler_with_reason)]
@@ -325,7 +294,6 @@ reason_photo_conv = ConversationHandler(
         allow_reentry=True
     )
 
-    # Conversation handler для добавления администратора
     add_admin_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^(Добавить админа)$"), add_admin_start)],
         states={
@@ -341,10 +309,8 @@ reason_photo_conv = ConversationHandler(
     application.add_handler(reason_photo_conv)
     application.add_handler(add_admin_conv)
     
-    # Обработчик для кнопки "Список зарегистрированных"
     application.add_handler(MessageHandler(filters.Regex("^(Список зарегистрированных)$"), show_registered_users))
     
-    # Обработчик для фото, отправленных вне процесса выбора причины
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler_no_reason))
 
     print("Бот запущен.")
