@@ -1,6 +1,5 @@
 import sqlite3
 
-
 connection = sqlite3.connect('koopteh.db')
 cursor = connection.cursor()
 
