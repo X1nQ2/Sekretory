@@ -5,10 +5,10 @@ import datetime
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-SAVE_DIR = r"\\192.168.3.250\Veda\2 Курс\ИСП 23\Основы алгоритмизации и программирования\Черепанов Балобанов"
+SAVE_DIR = r""
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-TOKEN = "7739567895:AAGyUX_hzC9jsWwoRPgVTn18cHl32FDKMI0" 
+TOKEN = "" 
 application = ApplicationBuilder().token(TOKEN).build()
 
 conn = sqlite3.connect("starosta.db")
@@ -52,7 +52,7 @@ if 'reason' not in column_names:
     cursor.execute("ALTER TABLE user_photos ADD COLUMN reason TEXT")
     print("Добавлен столбец 'reason' в таблицу 'user_photos'")
 
-ADMIN_IDS = [721799133]  
+ADMIN_IDS = []  
 for admin_id in ADMIN_IDS:
     cursor.execute("""
         INSERT OR IGNORE INTO admins (user_id) VALUES (?)
@@ -316,3 +316,4 @@ if __name__ == "__main__":
 
     print("Бот запущен.")
     application.run_polling()
+
