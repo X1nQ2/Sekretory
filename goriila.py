@@ -28,7 +28,7 @@ conn.commit()
 
 ADMIN_USER_ID = 
 
-# Состояния для ConversationHandler
+
 EDIT_NAME, EDIT_USERNAME = range(2)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,10 +114,10 @@ async def edit_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    # Замените ваш токен на актуальный
+    
     application = Application.builder().token("").build()
 
-    # Настраиваем обработчик диалога
+    
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern='^edit_data$')],
         states={
@@ -135,8 +135,9 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    # Запуск бота
+   
     application.run_polling()
 
 if __name__ == '__main__':
     main()
+
