@@ -1,0 +1,318 @@
+
+import os
+import sqlite3
+import datetime
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+
+SAVE_DIR = r"\\192.168.3.250\Veda\2 Курс\ИСП 23\Основы алгоритмизации и программирования\Черепанов Балобанов"
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+TOKEN = "7739567895:AAGyUX_hzC9jsWwoRPgVTn18cHl32FDKMI0" 
+application = ApplicationBuilder().token(TOKEN).build()
+
+conn = sqlite3.connect("starosta.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE NOT NULL,
+    full_name TEXT,
+    group_number TEXT,
+    registration_time DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS user_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+    reason TEXT,
+    upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (user_id)
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS admins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE NOT NULL,
+    username TEXT,
+    added_time DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+cursor.execute("PRAGMA table_info(user_photos)")
+columns = cursor.fetchall()
+column_names = [col[1] for col in columns]
+
+if 'reason' not in column_names:
+    cursor.execute("ALTER TABLE user_photos ADD COLUMN reason TEXT")
+    print("Добавлен столбец 'reason' в таблицу 'user_photos'")
+
+ADMIN_IDS = [721799133]  
+for admin_id in ADMIN_IDS:
+    cursor.execute("""
+        INSERT OR IGNORE INTO admins (user_id) VALUES (?)
+    """, (admin_id,))
+
+conn.commit()
+
+FULLNAME, GROUP, REASON = range(3)
+
+def is_admin(user_id: int) -> bool:
+    cursor.execute("SELECT user_id FROM admins WHERE user_id = ?", (user_id,))
+    return cursor.fetchone() is not None
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    
+    if is_admin(user_id):
+        keyboard = ReplyKeyboardMarkup([
+            [KeyboardButton("Зарегистрироваться")],
+            [KeyboardButton("Причина опоздания")],  # Одна кнопка на строку
+            [KeyboardButton("Список зарегистрированных"), KeyboardButton("Добавить админа")]  
+        ], resize_keyboard=True, one_time_keyboard=False)
+        welcome_text = "Я бот-староста твоей группы (режим администратора).\n\n"
+    else:
+        keyboard = ReplyKeyboardMarkup([
+            [KeyboardButton("Зарегистрироваться")],
+            [KeyboardButton("Причина опоздания")]  # Одна кнопка вместо двух
+        ], resize_keyboard=True, one_time_keyboard=False)
+        welcome_text = "Я бот-староста твоей группы.\nОтправь мне фото со справкой или освобождением.\n\n"
+    
+    await update.message.reply_text(
+        welcome_text + "Для начала зарегистрируйся или выбери причину отсутствия/опоздания.",
+        reply_markup=keyboard
+    )
+
+async def registration_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Пожалуйста, отправь своё полное имя (ФИО).")
+    return FULLNAME
+
+async def full_name_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['full_name'] = update.message.text
+    await update.message.reply_text("Спасибо! Теперь отправь номер своей группы.")
+    return GROUP
+
+async def group_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    full_name = context.user_data['full_name']
+    group_number = update.message.text
+    user_id = update.message.from_user.id
+
+    cursor.execute("""
+        INSERT INTO users (user_id, full_name, group_number) VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET full_name=excluded.full_name, group_number=excluded.group_number
+    """, (user_id, full_name, group_number))
+    conn.commit()
+
+    await update.message.reply_text(f"Регистрация завершена!\nФИО: {full_name}\nГруппа: {group_number}")
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Регистрация/процесс отменен.")
+    return ConversationHandler.END
+
+async def show_registered_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ У вас нет прав для просмотра этого списка.")
+        return
+    
+    cursor.execute("""
+        SELECT full_name, group_number, registration_time 
+        FROM users 
+        ORDER BY registration_time DESC
+    """)
+    users = cursor.fetchall()
+    
+    if not users:
+        await update.message.reply_text("Еще никто не зарегистрировался.")
+        return
+    
+    message = "📋 Список зарегистрированных пользователей:\n\n"
+    
+    for i, (full_name, group_number, reg_time) in enumerate(users, 1):
+        try:
+            reg_time_str = datetime.datetime.strptime(reg_time, "%Y-%m-%d %H:%M:%S").strftime("%d.%m.%Y %H:%M")
+        except:
+            reg_time_str = str(reg_time)
+        message += f"{i}. {full_name}\n"
+        message += f"   Группа: {group_number}\n"
+        message += f"   Зарегистрирован: {reg_time_str}\n\n"
+    
+    message += f"Всего зарегистрировано: {len(users)} человек"
+    
+    await update.message.reply_text(message)
+
+async def add_admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ У вас нет прав для добавления администраторов.")
+        return
+    
+    await update.message.reply_text("Пожалуйста, отправьте user_id нового администратора.")
+    context.user_data['adding_admin'] = True
+    return 'WAITING_FOR_ADMIN_ID'
+
+async def add_admin_id_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        new_admin_id = int(update.message.text)
+        
+        cursor.execute("""
+            INSERT OR IGNORE INTO admins (user_id, username) VALUES (?, ?)
+        """, (new_admin_id, update.message.from_user.username or "Неизвестный пользователь"))
+        conn.commit()
+        
+        await update.message.reply_text(f"✅ Пользователь с ID {new_admin_id} добавлен как администратор.")
+        
+        context.user_data.pop('adding_admin', None)
+        return ConversationHandler.END
+    except ValueError:
+        await update.message.reply_text("❌ Пожалуйста, отправьте корректный числовой ID.")
+        return 'WAITING_FOR_ADMIN_ID'
+
+async def reason_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    reason = update.message.text
+    context.user_data['reason'] = reason 
+    
+    user_id = update.message.from_user.id
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    if cursor.fetchone() is None:
+        await update.message.reply_text("Вы не зарегистрированы. Пожалуйста, сначала зарегистрируйтесь.")
+        return ConversationHandler.END
+    
+    await update.message.reply_text(f"Вы выбрали '{reason}'. Отправьте фото.")
+    return REASON
+
+async def photo_handler_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    photos = update.message.photo
+
+    if not photos:
+        await update.message.reply_text("Пожалуйста, отправьте именно фото. Если хотите отменить, нажмите /cancel.")
+        return REASON 
+
+    photo = photos[-1]
+    file = await context.bot.get_file(photo.file_id)
+    reason = context.user_data.get('reason', 'Не указана') 
+
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    if cursor.fetchone() is None:
+        await update.message.reply_text("Вы не зарегистрированы. Пожалуйста, сначала зарегистрируйтесь.")
+        return ConversationHandler.END
+
+    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{user_id}_{now_str}.jpg"
+    file_path = os.path.join(SAVE_DIR, file_name)
+
+    await file.download_to_drive(file_path)
+
+    try:
+        cursor.execute("INSERT INTO user_photos (user_id, file_path, reason) VALUES (?, ?, ?)",
+            (user_id, file_path, reason)
+        )
+        conn.commit()
+        await update.message.reply_text(f"Фото и причина '{reason}' сохранены.")
+    except sqlite3.OperationalError as e:
+        print(f"Ошибка при сохранении в базу: {e}")
+        cursor.execute(
+            "INSERT INTO user_photos (user_id, file_path) VALUES (?, ?)",
+            (user_id, file_path)
+        )
+        conn.commit()
+        await update.message.reply_text(f"Фото сохранено. Причина не сохранена из-за ошибки базы данных.")
+    
+    context.user_data.pop('reason', None)
+    return ConversationHandler.END
+
+async def photo_handler_no_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    photos = update.message.photo
+
+    if not photos:
+        return
+
+    photo = photos[-1]
+    file = await context.bot.get_file(photo.file_id)
+
+    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    if cursor.fetchone() is None:
+        await update.message.reply_text("Вы не зарегистрированы. Пожалуйста, сначала зарегистрируйтесь.")
+        return
+
+    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"{user_id}_{now_str}_noreason.jpg"
+    file_path = os.path.join(SAVE_DIR, file_name)
+
+    await file.download_to_drive(file_path)
+
+    try:
+        cursor.execute(
+            "INSERT INTO user_photos (user_id, file_path, reason) VALUES (?, ?, ?)",
+            (user_id, file_path, 'Не указана (фото без кнопки)')
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        cursor.execute(
+            "INSERT INTO user_photos (user_id, file_path) VALUES (?, ?)",
+            (user_id, file_path)
+        )
+        conn.commit()
+
+    await update.message.reply_text(f"Фото сохранено.")
+
+async def photos_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    cursor.execute("SELECT COUNT(*) FROM user_photos WHERE user_id = ?", (user.id,))
+    count = cursor.fetchone()[0]
+    await update.message.reply_text(f"Ты отправил(а) {count} фото.")
+
+if __name__ == "__main__":
+    
+    registration_conv = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^(Зарегистрироваться)$"), registration_start)],
+        states={
+            FULLNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, full_name_received)],
+            GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, group_received)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
+    )
+
+    reason_photo_conv = ConversationHandler(
+        entry_points=[
+            MessageHandler(filters.Regex("^(Причина опоздания)$"), reason_start)
+        ],
+        states={
+            REASON: [MessageHandler(filters.PHOTO, photo_handler_with_reason)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
+    )
+
+    add_admin_conv = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex("^(Добавить админа)$"), add_admin_start)],
+        states={
+            'WAITING_FOR_ADMIN_ID': [MessageHandler(filters.TEXT & ~filters.COMMAND, add_admin_id_received)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
+    )
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("photos", photos_count))
+    application.add_handler(registration_conv)
+    application.add_handler(reason_photo_conv)
+    application.add_handler(add_admin_conv)
+    
+    application.add_handler(MessageHandler(filters.Regex("^(Список зарегистрированных)$"), show_registered_users))
+    
+    application.add_handler(MessageHandler(filters.PHOTO, photo_handler_no_reason))
+
+    print("Бот запущен.")
+    application.run_polling()
