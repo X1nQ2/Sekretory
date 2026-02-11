@@ -54,10 +54,12 @@ admin_messages — рассылки от администрации
 📨 Отправить сообщение	Рассылка или личное сообщение
 
 Модели и технологии
+
 Язык: Python 3.9+
 Библиотека: python-telegram-bot v20+
 
 Быстрый старт
+
 1. Клонируй репозиторий
 git clone https://github.com/X1nQ2/Sekretory/blob/exam/ridon.py
 cd ryadom-bot
