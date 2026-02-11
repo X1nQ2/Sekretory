@@ -63,16 +63,19 @@ git clone https://github.com/X1nQ2/Sekretory/blob/exam/ridon.py
 cd ryadom-bot
 
 2. Установи зависимости
+
 pip install python-telegram-bot
 SQLite встроен, дополнительные пакеты не нужны
 
-Настрой токен и админов
+3.Настрой токен и админов
+
 В файле ridon.py
 BOT_TOKEN = "" Ваш токен
 ADMIN_IDS = [] Твой Telegram ID
 DB_PATH = "" название вашей бд
 
 4. Запусти бота
+
 python ridon.py
 
 Примеры кода
