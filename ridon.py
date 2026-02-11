@@ -30,11 +30,11 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 
 
-BOT_TOKEN = ""
+BOT_TOKEN = "8524498297:AAE07uhhKek7jg7gwNyMeGHA_oDJCgWXvns"
 
 
-ADMIN_IDS = []
-DB_PATH = ""
+ADMIN_IDS = [721799133]
+DB_PATH = "baze.db"
 
 MAX_PHOTOS = 3
 MAX_BIO_LENGTH = 500
@@ -188,7 +188,7 @@ class Database:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_age ON users(age)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_likes_from_to ON likes(from_user_id, to_user_id)")
             
-            print("База данных успешно инициализирована!")
+
     
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         """Получить пользователя по telegram_id"""
@@ -2595,15 +2595,13 @@ def main():
         level=logging.INFO
     )
     
-    if not BOT_TOKEN:
-        print("❌ Укажите токен бота!")
-        return
+
     
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_error_handler(error_handler)
     
-    # Регистрация
+
     registration_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start_command)],
         states={
@@ -2640,23 +2638,21 @@ def main():
     
     application.add_handler(registration_handler)
     
-    # Команды
+
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("profile", profile_command))
     application.add_handler(CommandHandler("browse", browse_profiles_command))
     application.add_handler(CommandHandler("admin", admin_command))
     application.add_handler(CommandHandler("delete", delete_command))
     
-    # Админ команды
     application.add_handler(CommandHandler("stats", admin_stats_command))
     application.add_handler(CommandHandler("users", admin_users_command))
     application.add_handler(CommandHandler("reports", admin_reports_command))
     application.add_handler(CommandHandler("ban", admin_ban_command))
     
-    # Обработка кнопок
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quick_buttons))
     
-    print("🤖 БОТ ЗАПУЩЕН")
+    print("БОТ ЗАПУЩЕН")
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
