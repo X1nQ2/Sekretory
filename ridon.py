@@ -188,7 +188,7 @@ class Database:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_age ON users(age)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_likes_from_to ON likes(from_user_id, to_user_id)")
             
-        
+            print("База данных успешно инициализирована!")
     
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         """Получить пользователя по telegram_id"""
@@ -2657,7 +2657,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quick_buttons))
     
     print("🤖 БОТ ЗАПУЩЕН")
-    print("📊 База данных: baze.db")
+
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
