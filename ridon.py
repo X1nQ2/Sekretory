@@ -30,11 +30,11 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 
 
-BOT_TOKEN = "8524498297:AAE07uhhKek7jg7gwNyMeGHA_oDJCgWXvns"
+BOT_TOKEN = ""
 
 
-ADMIN_IDS = [721799133]
-DB_PATH = "baze.db"
+ADMIN_IDS = []
+DB_PATH = ""
 
 MAX_PHOTOS = 3
 MAX_BIO_LENGTH = 500
